@@ -1,7 +1,9 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
+import type { ReactNode } from "react";
 import { useRef } from "react";
 import { formatTimestamp } from "../lib/format";
+import { useTheme } from "../lib/theme";
 import { MarkdownDocument } from "./MarkdownDocument";
 import type { IssueDetail } from "../types";
 
@@ -18,6 +20,7 @@ export function IssueDetailPane({
   error,
   focused,
 }: IssueDetailPaneProps) {
+  const theme = useTheme();
   const scrollRef = useRef<ScrollBoxRenderable | null>(null);
 
   useKeyboard((key) => {
@@ -52,11 +55,9 @@ export function IssueDetailPane({
       minWidth={42}
       border
       borderStyle="rounded"
-      borderColor="#315a72"
-      focusedBorderColor="#f5b85c"
-      title={issue ? `Issue #${issue.number}` : "Issue Detail"}
-      titleAlignment="center"
-      backgroundColor="#0d1821"
+      borderColor={theme.colors.border}
+      focusedBorderColor={theme.colors.focusBorder}
+      backgroundColor={theme.colors.panelBackground}
       padding={1}
       focusable
       focused={focused}
@@ -68,88 +69,146 @@ export function IssueDetailPane({
       ) : !issue ? (
         <EmptyMessage message="Select an issue to inspect the thread." />
       ) : (
+        <box flexDirection="column" gap={1} height="100%">
+          <PaneHeader text={issue ? `Issue #${issue.number}` : "Issue Detail"} />
+          <IssueSummaryCard issue={issue} />
           <scrollbox
             ref={scrollRef}
             flexGrow={1}
             focused={focused}
             scrollY
-            backgroundColor="#0d1821"
-            rootOptions={{ backgroundColor: "#0d1821" }}
-            viewportOptions={{ backgroundColor: "#0d1821" }}
-            contentOptions={{ backgroundColor: "#0d1821" }}
+            backgroundColor={theme.colors.panelBackground}
+            rootOptions={{ backgroundColor: theme.colors.panelBackground }}
+            viewportOptions={{ backgroundColor: theme.colors.panelBackground }}
+            contentOptions={{ backgroundColor: theme.colors.panelBackground }}
             scrollbarOptions={{
-              trackOptions: { backgroundColor: "#173042", foregroundColor: "#5fb3b3" },
+              trackOptions: {
+                backgroundColor: theme.colors.scrollbarTrack,
+                foregroundColor: theme.colors.scrollbarThumb,
+              },
             }}
+            verticalScrollbarOptions={{ visible: true }}
           >
             <box flexDirection="column" gap={1} paddingRight={1}>
-              <box
-                flexDirection="column"
-                border
-                borderStyle="single"
-                borderColor="#284556"
-                padding={1}
-              >
-                <text fg="#f9f6ef">
-                  <strong>{issue.title}</strong>
-                </text>
-              <text fg="#6f91a4">
-                #{issue.number} · {issue.authorLogin} · {issue.state} · updated{" "}
-                {formatTimestamp(issue.updatedAt)}
-              </text>
-              <text fg="#8ed7c6">{issue.url}</text>
+              <SectionLabel text="Original Issue" />
+              <MarkdownDocument content={issue.body} />
+
+              <SectionLabel text={`Responses (${issue.comments.length})`} />
+              {issue.comments.length === 0 ? (
+                <EmptyMessage message="No follow-up comments yet." />
+              ) : (
+                issue.comments.map((comment, index) => (
+                  <box
+                    key={`${comment.url}-${index}`}
+                    flexDirection="column"
+                    border
+                    borderStyle="single"
+                    borderColor={theme.colors.borderMuted}
+                    padding={1}
+                  >
+                    <text fg={theme.colors.textHighlight}>
+                      <strong>{comment.authorLogin}</strong>
+                      <span fg={theme.colors.textMuted}>
+                        {" "}
+                        · {formatTimestamp(comment.createdAt)}
+                      </span>
+                    </text>
+                    <MarkdownDocument content={comment.body} />
+                  </box>
+                ))
+              )}
             </box>
-
-            <SectionLabel text="Original Issue" />
-            <MarkdownDocument content={issue.body} />
-
-            <SectionLabel text={`Responses (${issue.comments.length})`} />
-            {issue.comments.length === 0 ? (
-              <EmptyMessage message="No follow-up comments yet." />
-            ) : (
-              issue.comments.map((comment, index) => (
-                <box
-                  key={`${comment.url}-${index}`}
-                  flexDirection="column"
-                  border
-                  borderStyle="single"
-                  borderColor="#284556"
-                  padding={1}
-                >
-                  <text fg="#f5b85c">
-                    <strong>{comment.authorLogin}</strong>
-                    <span fg="#6f91a4"> · {formatTimestamp(comment.createdAt)}</span>
-                  </text>
-                  <MarkdownDocument content={comment.body} />
-                </box>
-              ))
-            )}
-          </box>
-        </scrollbox>
+          </scrollbox>
+        </box>
       )}
     </box>
   );
 }
 
-function SectionLabel({ text }: { text: string }) {
+function PaneHeader({ text }: { text: string }) {
+  const theme = useTheme();
+
   return (
-    <text fg="#8ed7c6">
+    <box
+      height={1}
+      minHeight={1}
+      maxHeight={1}
+      justifyContent="center"
+      overflow="hidden"
+    >
+      <text fg={theme.colors.border} width="100%" wrapMode="none" truncate>
+        {text}
+      </text>
+    </box>
+  );
+}
+
+function IssueSummaryCard({ issue }: { issue: IssueDetail }) {
+  const theme = useTheme();
+
+  return (
+    <box
+      flexDirection="column"
+      border
+      borderStyle="single"
+      borderColor={theme.colors.borderMuted}
+      height={7}
+      minHeight={7}
+      maxHeight={7}
+      overflow="hidden"
+      padding={1}
+    >
+      <HeaderLine fg={theme.colors.textPrimary}>
+        <strong>{issue.title}</strong>
+      </HeaderLine>
+      <HeaderLine fg={theme.colors.textMuted}>
+        #{issue.number} · {issue.authorLogin} · {issue.state} · updated{" "}
+        {formatTimestamp(issue.updatedAt)}
+      </HeaderLine>
+      <HeaderLine fg={theme.colors.textAccent}>{issue.url}</HeaderLine>
+    </box>
+  );
+}
+
+function HeaderLine({
+  fg,
+  children,
+}: {
+  fg: string;
+  children: ReactNode;
+}) {
+  return (
+    <box height={1} minHeight={1} maxHeight={1} overflow="hidden">
+      <text fg={fg} width="100%" wrapMode="none" truncate>
+        {children}
+      </text>
+    </box>
+  );
+}
+
+function SectionLabel({ text }: { text: string }) {
+  const theme = useTheme();
+  return (
+    <text fg={theme.colors.textAccent}>
       <strong>{text}</strong>
     </text>
   );
 }
 
 function EmptyMessage({ message }: { message: string }) {
+  const theme = useTheme();
   return (
-    <box border borderStyle="single" borderColor="#315a72" padding={1}>
-      <text fg="#9bb4c4">{message}</text>
+    <box border borderStyle="single" borderColor={theme.colors.border} padding={1}>
+      <text fg={theme.colors.textSecondary}>{message}</text>
     </box>
   );
 }
 
 function ErrorMessage({ message }: { message: string }) {
+  const theme = useTheme();
   return (
-    <box border borderStyle="single" borderColor="#b84a3c" padding={1}>
-      <text fg="#ffb3a8">{message}</text>
+    <box border borderStyle="single" borderColor={theme.colors.borderDanger} padding={1}>
+      <text fg={theme.colors.textDanger}>{message}</text>
     </box>
   );
 }

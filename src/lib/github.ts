@@ -190,8 +190,7 @@ const PR_DETAIL_QUERY = `
 `;
 
 export function getRepoConfig(): RepoConfig {
-  const fullName =
-    process.env.GITHUB_REPOSITORY?.trim() || process.env.GH_REPO?.trim() || "";
+  const fullName = getRepositoryArgument();
   const refreshIntervalSeconds =
     Number.parseInt(process.env.GITHUB_REFRESH_INTERVAL_SECONDS ?? "", 10) ||
     DEFAULT_REFRESH_INTERVAL_SECONDS;
@@ -201,7 +200,7 @@ export function getRepoConfig(): RepoConfig {
     return {
       ok: false,
       error:
-        "Set GITHUB_REPOSITORY=owner/repo before launching the TUI. Example: GITHUB_REPOSITORY=vultuk/exectui bun run start",
+        "Pass the repository as owner/repo when launching the TUI. Example: bun run start -- vultuk/exectui",
       refreshIntervalMs,
     };
   }
@@ -217,11 +216,18 @@ export function getRepoConfig(): RepoConfig {
 
   return {
     ok: true,
-      fullName,
-      owner,
-      name,
-      refreshIntervalMs,
-    };
+    fullName,
+    owner,
+    name,
+    refreshIntervalMs,
+  };
+}
+
+function getRepositoryArgument() {
+  return process.argv
+    .slice(2)
+    .find((value) => !value.startsWith("-"))
+    ?.trim() ?? "";
 }
 
 export async function fetchWorkflowOverview(

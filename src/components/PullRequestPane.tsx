@@ -1,5 +1,6 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
+import type { ReactNode } from "react";
 import { useRef } from "react";
 import {
   formatPullRequestMeta,
@@ -8,6 +9,7 @@ import {
   normalizeCheckState,
   summarizeChecks,
 } from "../lib/format";
+import { useTheme } from "../lib/theme";
 import { MarkdownDocument } from "./MarkdownDocument";
 import type { PullRequestDetail, PullRequestSummary } from "../types";
 
@@ -26,6 +28,7 @@ export function PullRequestPane({
   error,
   focused,
 }: PullRequestPaneProps) {
+  const theme = useTheme();
   const scrollRef = useRef<ScrollBoxRenderable | null>(null);
   const effectiveChecks = pullRequest?.checks ?? [];
 
@@ -61,20 +64,21 @@ export function PullRequestPane({
       minWidth={44}
       border
       borderStyle="rounded"
-      borderColor="#315a72"
-      focusedBorderColor="#f5b85c"
-      title={
-        pullRequestSummary
-          ? `Pull Request #${pullRequestSummary.number}`
-          : "Pull Request"
-      }
-      titleAlignment="center"
-      backgroundColor="#101b1f"
+      borderColor={theme.colors.border}
+      focusedBorderColor={theme.colors.focusBorder}
+      backgroundColor={theme.colors.panelBackgroundAlt}
       padding={1}
       focusable
       focused={focused}
     >
       <box flexDirection="column" gap={1} height="100%">
+        <PaneHeader
+          text={
+            pullRequestSummary
+              ? `Pull Request #${pullRequestSummary.number}`
+              : "Pull Request"
+          }
+        />
         <box flexGrow={1} minHeight={10}>
           {error ? (
             <ErrorMessage message={error} />
@@ -85,105 +89,103 @@ export function PullRequestPane({
           ) : !pullRequest ? (
             <EmptyMessage message="Waiting for pull request data..." />
           ) : (
-            <scrollbox
-              ref={scrollRef}
-              flexGrow={1}
-              focused={focused}
-              scrollY
-              backgroundColor="#101b1f"
-              rootOptions={{ backgroundColor: "#101b1f" }}
-              viewportOptions={{ backgroundColor: "#101b1f" }}
-              contentOptions={{ backgroundColor: "#101b1f" }}
-              scrollbarOptions={{
-                trackOptions: { backgroundColor: "#183138", foregroundColor: "#8ed7c6" },
-              }}
-            >
-              <box flexDirection="column" gap={1} paddingRight={1}>
-                <box
-                  flexDirection="column"
-                  border
-                  borderStyle="single"
-                  borderColor="#284556"
-                  padding={1}
-                >
-                  <text fg="#f9f6ef">
-                    <strong>{pullRequest.title}</strong>
-                  </text>
-                  <text fg="#6f91a4">{formatPullRequestMeta(pullRequest)}</text>
-                  <text fg="#8ed7c6">{pullRequest.url}</text>
-                </box>
+            <box flexDirection="column" gap={1} height="100%">
+              <PullRequestSummaryCard pullRequest={pullRequest} />
+              <scrollbox
+                ref={scrollRef}
+                flexGrow={1}
+                focused={focused}
+                scrollY
+                backgroundColor={theme.colors.panelBackgroundAlt}
+                rootOptions={{ backgroundColor: theme.colors.panelBackgroundAlt }}
+                viewportOptions={{ backgroundColor: theme.colors.panelBackgroundAlt }}
+                contentOptions={{ backgroundColor: theme.colors.panelBackgroundAlt }}
+                scrollbarOptions={{
+                  trackOptions: {
+                    backgroundColor: theme.colors.scrollbarTrack,
+                    foregroundColor: theme.colors.scrollbarThumb,
+                  },
+                }}
+                verticalScrollbarOptions={{ visible: true }}
+              >
+                <box flexDirection="column" gap={1} paddingRight={1}>
+                  <SectionLabel text="Description" />
+                  <MarkdownDocument content={pullRequest.body} />
 
-                <SectionLabel text="Description" />
-                <MarkdownDocument content={pullRequest.body} />
+                  <SectionLabel text={`Conversation (${pullRequest.comments.length})`} />
+                  {pullRequest.comments.length === 0 ? (
+                    <EmptyMessage message="No conversation comments on this pull request." />
+                  ) : (
+                    pullRequest.comments.map((comment, index) => (
+                      <box
+                        key={`${comment.url}-${index}`}
+                        flexDirection="column"
+                        border
+                        borderStyle="single"
+                        borderColor={theme.colors.borderMuted}
+                        padding={1}
+                      >
+                        <text fg={theme.colors.textHighlight}>
+                          <strong>{comment.authorLogin}</strong>
+                          <span fg={theme.colors.textMuted}>
+                            {" "}
+                            · {formatTimestamp(comment.createdAt)}
+                          </span>
+                        </text>
+                        <MarkdownDocument content={comment.body} />
+                      </box>
+                    ))
+                  )}
 
-                <SectionLabel text={`Conversation (${pullRequest.comments.length})`} />
-                {pullRequest.comments.length === 0 ? (
-                  <EmptyMessage message="No conversation comments on this pull request." />
-                ) : (
-                  pullRequest.comments.map((comment, index) => (
-                    <box
-                      key={`${comment.url}-${index}`}
-                      flexDirection="column"
-                      border
-                      borderStyle="single"
-                      borderColor="#284556"
-                      padding={1}
-                    >
-                      <text fg="#f5b85c">
-                        <strong>{comment.authorLogin}</strong>
-                        <span fg="#6f91a4"> · {formatTimestamp(comment.createdAt)}</span>
-                      </text>
-                      <MarkdownDocument content={comment.body} />
-                    </box>
-                  ))
-                )}
-
-                <SectionLabel text={`Reviews (${pullRequest.reviews.length})`} />
-                {pullRequest.reviews.length === 0 ? (
-                  <EmptyMessage message="No reviews have been submitted yet." />
-                ) : (
-                  pullRequest.reviews.map((review, reviewIndex) => (
-                    <box
-                      key={`${review.url}-${reviewIndex}`}
-                      flexDirection="column"
-                      border
-                      borderStyle="single"
-                      borderColor="#284556"
-                      padding={1}
-                      gap={1}
-                    >
-                      <text fg="#f5b85c">
-                        <strong>{formatReviewHeading(review)}</strong>
-                      </text>
-                      {review.body.trim() ? (
-                        <MarkdownDocument content={review.body} />
-                      ) : (
-                        <text fg="#9bb4c4">No summary body on this review.</text>
-                      )}
-                      {review.comments.map((comment, commentIndex) => (
-                        <box
-                          key={`${comment.url}-${commentIndex}`}
-                          flexDirection="column"
-                          border
-                          borderStyle="single"
-                          borderColor="#3d697d"
-                          padding={1}
-                        >
-                          <text fg="#8ed7c6">
-                            {comment.authorLogin}
-                            <span fg="#6f91a4">
-                              {comment.path ? ` · ${comment.path}` : ""} ·{" "}
-                              {formatTimestamp(comment.createdAt)}
-                            </span>
+                  <SectionLabel text={`Reviews (${pullRequest.reviews.length})`} />
+                  {pullRequest.reviews.length === 0 ? (
+                    <EmptyMessage message="No reviews have been submitted yet." />
+                  ) : (
+                    pullRequest.reviews.map((review, reviewIndex) => (
+                      <box
+                        key={`${review.url}-${reviewIndex}`}
+                        flexDirection="column"
+                        border
+                        borderStyle="single"
+                        borderColor={theme.colors.borderMuted}
+                        padding={1}
+                        gap={1}
+                      >
+                        <text fg={theme.colors.textHighlight}>
+                          <strong>{formatReviewHeading(review)}</strong>
+                        </text>
+                        {review.body.trim() ? (
+                          <MarkdownDocument content={review.body} />
+                        ) : (
+                          <text fg={theme.colors.textSecondary}>
+                            No summary body on this review.
                           </text>
-                          <MarkdownDocument content={comment.body} />
-                        </box>
-                      ))}
-                    </box>
-                  ))
-                )}
-              </box>
-            </scrollbox>
+                        )}
+                        {review.comments.map((comment, commentIndex) => (
+                          <box
+                            key={`${comment.url}-${commentIndex}`}
+                            flexDirection="column"
+                            border
+                            borderStyle="single"
+                            borderColor={theme.colors.borderStrong}
+                            padding={1}
+                          >
+                            <text fg={theme.colors.textAccent}>
+                              {comment.authorLogin}
+                              <span fg={theme.colors.textMuted}>
+                                {comment.path ? ` · ${comment.path}` : ""} ·{" "}
+                                {formatTimestamp(comment.createdAt)}
+                              </span>
+                            </text>
+                            <MarkdownDocument content={comment.body} />
+                          </box>
+                        ))}
+                      </box>
+                    ))
+                  )}
+                </box>
+              </scrollbox>
+            </box>
           )}
         </box>
 
@@ -192,18 +194,18 @@ export function PullRequestPane({
           minHeight={10}
           border
           borderStyle="single"
-          borderColor="#315a72"
+          borderColor={theme.colors.border}
           padding={1}
-          backgroundColor="#0c1316"
+          backgroundColor={theme.colors.chromeBackground}
           flexDirection="column"
           gap={1}
         >
-          <text fg="#8ed7c6">
+          <text fg={theme.colors.textAccent}>
             <strong>CI Status</strong>
-            <span fg="#6f91a4"> · {summarizeChecks(effectiveChecks)}</span>
+            <span fg={theme.colors.textMuted}> · {summarizeChecks(effectiveChecks)}</span>
           </text>
           {effectiveChecks.length === 0 ? (
-            <text fg="#9bb4c4">
+            <text fg={theme.colors.textSecondary}>
               {pullRequestSummary
                 ? "No checks have been published for this pull request yet."
                 : "Select an issue with an open pull request to see CI progress."}
@@ -212,32 +214,36 @@ export function PullRequestPane({
             <scrollbox
               flexGrow={1}
               scrollY
-              rootOptions={{ backgroundColor: "#0c1316" }}
-              viewportOptions={{ backgroundColor: "#0c1316" }}
-              contentOptions={{ backgroundColor: "#0c1316" }}
+              rootOptions={{ backgroundColor: theme.colors.chromeBackground }}
+              viewportOptions={{ backgroundColor: theme.colors.chromeBackground }}
+              contentOptions={{ backgroundColor: theme.colors.chromeBackground }}
               scrollbarOptions={{
-                trackOptions: { backgroundColor: "#183138", foregroundColor: "#8ed7c6" },
+                trackOptions: {
+                  backgroundColor: theme.colors.scrollbarTrack,
+                  foregroundColor: theme.colors.scrollbarThumb,
+                },
               }}
+              verticalScrollbarOptions={{ visible: true }}
             >
               <box flexDirection="column" gap={0}>
                 {effectiveChecks.map((check, index) => {
                   const state = normalizeCheckState(check);
                   const color =
                     state === "passing"
-                      ? "#8ed7c6"
+                      ? theme.colors.textSuccess
                       : state === "running"
-                        ? "#f5b85c"
-                        : "#ff8f70";
+                        ? theme.colors.textWarning
+                        : theme.colors.textFailure;
                   const marker =
                     state === "passing" ? "PASS" : state === "running" ? "RUN " : "FAIL";
 
                   return (
-                    <text key={`${check.name}-${index}`} fg="#d9e5ec">
+                    <text key={`${check.name}-${index}`} fg={theme.colors.textSecondary}>
                       <span fg={color}>
                         <strong>{marker}</strong>
                       </span>
-                      <span fg="#d9e5ec"> {check.name}</span>
-                      <span fg="#6f91a4">
+                      <span fg={theme.colors.textSecondary}> {check.name}</span>
+                      <span fg={theme.colors.textMuted}>
                         {check.description ? ` · ${check.description}` : ""}
                       </span>
                     </text>
@@ -252,26 +258,89 @@ export function PullRequestPane({
   );
 }
 
-function SectionLabel({ text }: { text: string }) {
+function PaneHeader({ text }: { text: string }) {
+  const theme = useTheme();
+
   return (
-    <text fg="#8ed7c6">
+    <box
+      height={1}
+      minHeight={1}
+      maxHeight={1}
+      justifyContent="center"
+      overflow="hidden"
+    >
+      <text fg={theme.colors.border} width="100%" wrapMode="none" truncate>
+        {text}
+      </text>
+    </box>
+  );
+}
+
+function PullRequestSummaryCard({ pullRequest }: { pullRequest: PullRequestDetail }) {
+  const theme = useTheme();
+
+  return (
+    <box
+      flexDirection="column"
+      border
+      borderStyle="single"
+      borderColor={theme.colors.borderMuted}
+      height={7}
+      minHeight={7}
+      maxHeight={7}
+      overflow="hidden"
+      padding={1}
+    >
+      <HeaderLine fg={theme.colors.textPrimary}>
+        <strong>{pullRequest.title}</strong>
+      </HeaderLine>
+      <HeaderLine fg={theme.colors.textMuted}>
+        {formatPullRequestMeta(pullRequest)}
+      </HeaderLine>
+      <HeaderLine fg={theme.colors.textAccent}>{pullRequest.url}</HeaderLine>
+    </box>
+  );
+}
+
+function HeaderLine({
+  fg,
+  children,
+}: {
+  fg: string;
+  children: ReactNode;
+}) {
+  return (
+    <box height={1} minHeight={1} maxHeight={1} overflow="hidden">
+      <text fg={fg} width="100%" wrapMode="none" truncate>
+        {children}
+      </text>
+    </box>
+  );
+}
+
+function SectionLabel({ text }: { text: string }) {
+  const theme = useTheme();
+  return (
+    <text fg={theme.colors.textAccent}>
       <strong>{text}</strong>
     </text>
   );
 }
 
 function EmptyMessage({ message }: { message: string }) {
+  const theme = useTheme();
   return (
-    <box border borderStyle="single" borderColor="#315a72" padding={1}>
-      <text fg="#9bb4c4">{message}</text>
+    <box border borderStyle="single" borderColor={theme.colors.border} padding={1}>
+      <text fg={theme.colors.textSecondary}>{message}</text>
     </box>
   );
 }
 
 function ErrorMessage({ message }: { message: string }) {
+  const theme = useTheme();
   return (
-    <box border borderStyle="single" borderColor="#b84a3c" padding={1}>
-      <text fg="#ffb3a8">{message}</text>
+    <box border borderStyle="single" borderColor={theme.colors.borderDanger} padding={1}>
+      <text fg={theme.colors.textDanger}>{message}</text>
     </box>
   );
 }

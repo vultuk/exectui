@@ -13,15 +13,11 @@ This first version includes:
 
 ## Configuration
 
-Set the repository before launching:
-
-```bash
-cp .env.example .env
-```
-
 Required:
 
-- `GITHUB_REPOSITORY=owner/repo`
+```bash
+bun run start -- owner/repo
+```
 
 Optional:
 
@@ -33,13 +29,13 @@ The app uses the authenticated GitHub CLI session on your machine for API access
 
 ```bash
 bun install
-bun run start
+bun run start -- owner/repo
 ```
 
 Development watch mode:
 
 ```bash
-bun run dev
+bun run dev -- owner/repo
 ```
 
 Typecheck:
@@ -51,4 +47,5 @@ bun run typecheck
 ## Notes
 
 - Pull requests are linked through GitHub `closingIssuesReferences`, so the PR needs to reference the issue using normal GitHub closing syntax.
+- Theme selection is persisted between launches in your local config directory at `$XDG_CONFIG_HOME/exectui/settings.json` or `~/.config/exectui/settings.json`.
 - This is an initial shell. Issue creation, `execplan`, PR feedback actions, merge controls, and richer filtering are not implemented yet.

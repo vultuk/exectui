@@ -2,6 +2,7 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import { useEffect, useRef } from "react";
 import type { IssueSummary, PullRequestSummary } from "../types";
 import { toIssueSelectDescription } from "../lib/format";
+import { useTheme } from "../lib/theme";
 
 const ISSUE_CARD_WIDTH_HINT = 52;
 const ISSUE_CARD_STRIDE = 5;
@@ -35,6 +36,7 @@ export function IssueListPane({
   onActivatePane,
   onSelectIssue,
 }: IssueListPaneProps) {
+  const theme = useTheme();
   const scrollRef = useRef<ScrollBoxRenderable | null>(null);
   const selectedIndex = issues.findIndex((issue) => issue.number === selectedIssueNumber);
 
@@ -66,26 +68,26 @@ export function IssueListPane({
       maxWidth={maxWidth}
       border
       borderStyle="rounded"
-      borderColor="#315a72"
-      focusedBorderColor="#f5b85c"
+      borderColor={theme.colors.border}
+      focusedBorderColor={theme.colors.focusBorder}
       title="Codex Issues"
       titleAlignment="center"
-      backgroundColor="#0b141b"
+      backgroundColor={theme.colors.chromeBackground}
       padding={1}
       focusable
       focused={focused}
     >
       <box flexDirection="column" gap={1} height="100%">
-        <text fg="#f5b85c">
+        <text fg={theme.colors.textHighlight}>
           <strong>{issues.length}</strong> open issues
         </text>
         {error ? (
-          <box border borderStyle="single" borderColor="#b84a3c" padding={1}>
-            <text fg="#ffb3a8">{error}</text>
+          <box border borderStyle="single" borderColor={theme.colors.borderDanger} padding={1}>
+            <text fg={theme.colors.textDanger}>{error}</text>
           </box>
         ) : issues.length === 0 ? (
-          <box border borderStyle="single" borderColor="#315a72" padding={1}>
-            <text fg="#9bb4c4">
+          <box border borderStyle="single" borderColor={theme.colors.border} padding={1}>
+            <text fg={theme.colors.textSecondary}>
               {loading
                 ? "Loading issues from GitHub..."
                 : "No open issues found in the configured repository."}
@@ -95,14 +97,18 @@ export function IssueListPane({
           <scrollbox
             ref={scrollRef}
             flexGrow={1}
-            backgroundColor="#0b141b"
+            backgroundColor={theme.colors.chromeBackground}
             scrollY
-            rootOptions={{ backgroundColor: "#0b141b" }}
-            viewportOptions={{ backgroundColor: "#0b141b" }}
-            contentOptions={{ backgroundColor: "#0b141b" }}
+            rootOptions={{ backgroundColor: theme.colors.chromeBackground }}
+            viewportOptions={{ backgroundColor: theme.colors.chromeBackground }}
+            contentOptions={{ backgroundColor: theme.colors.chromeBackground }}
             scrollbarOptions={{
-              trackOptions: { backgroundColor: "#173042", foregroundColor: "#5fb3b3" },
+              trackOptions: {
+                backgroundColor: theme.colors.scrollbarTrack,
+                foregroundColor: theme.colors.scrollbarThumb,
+              },
             }}
+            verticalScrollbarOptions={{ visible: true }}
           >
             <box flexDirection="column" gap={1}>
               {issues.map((issue) => {
@@ -115,8 +121,12 @@ export function IssueListPane({
                     key={issue.number}
                     border
                     borderStyle="single"
-                    borderColor={selected ? "#f5b85c" : "#315a72"}
-                    backgroundColor={selected ? "#173042" : "#10212b"}
+                    borderColor={selected ? theme.colors.focusBorder : theme.colors.border}
+                    backgroundColor={
+                      selected
+                        ? theme.colors.panelBackgroundSelected
+                        : theme.colors.panelBackgroundMuted
+                    }
                     height={4}
                     focusable
                     onMouseDown={() => {
@@ -125,13 +135,17 @@ export function IssueListPane({
                     }}
                   >
                     <box flexDirection="column" gap={0} paddingX={1}>
-                      <text fg={selected ? "#f5b85c" : "#f9f6ef"}>
+                      <text
+                        fg={selected ? theme.colors.textHighlight : theme.colors.textPrimary}
+                      >
                         <strong>
                           {selected ? "▶ " : ""}
                           {truncateForCard(issue.title, titleMaxLength)}
                         </strong>
                       </text>
-                      <text fg={selected ? "#d9e5ec" : "#6f91a4"}>
+                      <text
+                        fg={selected ? theme.colors.textSecondary : theme.colors.textMuted}
+                      >
                         {toIssueSelectDescription(issue, linkedPullRequest)}
                       </text>
                     </box>

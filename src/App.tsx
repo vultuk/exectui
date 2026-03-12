@@ -4,6 +4,7 @@ import { FiltersModal } from "./components/FiltersModal";
 import { IssueDetailPane } from "./components/IssueDetailPane";
 import { IssueListPane } from "./components/IssueListPane";
 import { PullRequestPane } from "./components/PullRequestPane";
+import { SettingsModal } from "./components/SettingsModal";
 import {
   fetchIssueDetail,
   fetchPullRequestDetail,
@@ -11,6 +12,15 @@ import {
   getRepoConfig,
 } from "./lib/github";
 import { formatTimestamp } from "./lib/format";
+import { loadThemePreference, saveThemePreference } from "./lib/settings";
+import {
+  DEFAULT_THEME_NAME,
+  getThemeList,
+  THEMES,
+  ThemeProvider,
+  type ThemeName,
+  useTheme,
+} from "./lib/theme";
 import type {
   AppFilters,
   AppPane,
@@ -48,9 +58,15 @@ export function App() {
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [filters, setFilters] = useState<AppFilters>({ openPrOnly: false });
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [activeModal, setActiveModal] = useState<"filters" | "settings" | null>(null);
+  const [themeName, setThemeName] = useState<ThemeName>(() => loadThemePreference());
+  const [highlightedThemeName, setHighlightedThemeName] =
+    useState<ThemeName>(() => loadThemePreference());
+  const theme = THEMES[themeName];
   const visiblePanes = getVisiblePanes(showIssueList);
   const primaryContentPane = activePane === "pull-request" ? "pull-request" : "issue-detail";
+  const isFilterModalOpen = activeModal === "filters";
+  const isSettingsModalOpen = activeModal === "settings";
 
   const visibleIssues = applyIssueFilters(
     overview?.issues ?? [],
@@ -79,6 +95,16 @@ export function App() {
     );
   };
 
+  useEffect(() => {
+    if (isSettingsModalOpen) {
+      setHighlightedThemeName(themeName);
+    }
+  }, [isSettingsModalOpen, themeName]);
+
+  useEffect(() => {
+    saveThemePreference(themeName);
+  }, [themeName]);
+
   useKeyboard((key) => {
     if (key.ctrl && key.name === "d") {
       setShowIssueList((current) => {
@@ -92,18 +118,47 @@ export function App() {
     }
 
     if (key.ctrl && key.name === "f") {
-      setIsFilterModalOpen((current) => !current);
+      setActiveModal((current) => (current === "filters" ? null : "filters"));
+      return;
+    }
+
+    if (key.ctrl && key.name === "t") {
+      setActiveModal((current) => (current === "settings" ? null : "settings"));
       return;
     }
 
     if (isFilterModalOpen) {
       if (key.name === "escape") {
-        setIsFilterModalOpen(false);
+        setActiveModal(null);
         return;
       }
 
       if (key.name === "space" || key.name === "enter") {
         toggleOpenPrOnlyFilter();
+        return;
+      }
+
+      return;
+    }
+
+    if (isSettingsModalOpen) {
+      if (key.name === "escape") {
+        setActiveModal(null);
+        return;
+      }
+
+      if (key.name === "down" || key.name === "j" || key.name === "right") {
+        setHighlightedThemeName((current) => moveThemeSelection(current, 1));
+        return;
+      }
+
+      if (key.name === "up" || key.name === "k" || key.name === "left") {
+        setHighlightedThemeName((current) => moveThemeSelection(current, -1));
+        return;
+      }
+
+      if (key.name === "space" || key.name === "enter") {
+        setThemeName(highlightedThemeName);
         return;
       }
 
@@ -295,57 +350,68 @@ export function App() {
   }, [config, selectedPullRequestSummary, refreshNonce, lastRefreshedAt]);
 
   return (
-    <box
-      width="100%"
-      height="100%"
-      flexDirection="column"
-      backgroundColor="#071015"
-      padding={1}
-      gap={1}
-    >
-      <Header
-        config={config}
-        activePane={activePane}
-        layoutMode={layoutMode}
-        showIssueList={showIssueList}
-        issueCount={overview?.issues.length ?? 0}
-        pullRequestCount={overview?.openPullRequests.length ?? 0}
-        lastRefreshedAt={lastRefreshedAt}
-        loading={overviewLoading || issueDetailLoading || pullRequestDetailLoading}
-      />
-
-      <ResponsiveBody
-        layoutMode={layoutMode}
-        showIssueList={showIssueList}
-        activePane={activePane}
-        primaryContentPane={primaryContentPane}
-        issueListWidth={issueListWidth}
-        issueTitleMaxLength={issueTitleMaxLength}
-        issues={visibleIssues}
-        linkedPullRequestsByIssueNumber={overview?.openPullRequestsByIssueNumber ?? {}}
-        selectedIssueNumber={selectedIssueNumber}
-        overviewLoading={overviewLoading}
-        overviewError={overviewError}
-        issueDetail={issueDetail}
-        issueDetailLoading={issueDetailLoading}
-        issueDetailError={issueDetailError}
-        pullRequestSummary={selectedPullRequestSummary}
-        pullRequestDetail={pullRequestDetail}
-        pullRequestDetailLoading={pullRequestDetailLoading}
-        pullRequestDetailError={pullRequestDetailError}
-        onActivatePane={setActivePane}
-        onSelectIssue={setSelectedIssueNumber}
-      />
-      {isFilterModalOpen ? (
-        <FiltersModal
-          filters={filters}
+    <ThemeProvider theme={theme}>
+      <box
+        width="100%"
+        height="100%"
+        flexDirection="column"
+        backgroundColor={theme.colors.appBackground}
+        padding={1}
+        gap={1}
+      >
+        <Header
+          config={config}
+          activePane={activePane}
+          layoutMode={layoutMode}
+          showIssueList={showIssueList}
           issueCount={overview?.issues.length ?? 0}
-          matchingIssueCount={visibleIssues.length}
-          onToggleOpenPrOnly={toggleOpenPrOnlyFilter}
-          onClose={() => setIsFilterModalOpen(false)}
+          pullRequestCount={overview?.openPullRequests.length ?? 0}
+          lastRefreshedAt={lastRefreshedAt}
+          loading={overviewLoading || issueDetailLoading || pullRequestDetailLoading}
         />
-      ) : null}
-    </box>
+
+        <ResponsiveBody
+          layoutMode={layoutMode}
+          showIssueList={showIssueList}
+          activePane={activePane}
+          primaryContentPane={primaryContentPane}
+          issueListWidth={issueListWidth}
+          issueTitleMaxLength={issueTitleMaxLength}
+          issues={visibleIssues}
+          linkedPullRequestsByIssueNumber={overview?.openPullRequestsByIssueNumber ?? {}}
+          selectedIssueNumber={selectedIssueNumber}
+          overviewLoading={overviewLoading}
+          overviewError={overviewError}
+          issueDetail={issueDetail}
+          issueDetailLoading={issueDetailLoading}
+          issueDetailError={issueDetailError}
+          pullRequestSummary={selectedPullRequestSummary}
+          pullRequestDetail={pullRequestDetail}
+          pullRequestDetailLoading={pullRequestDetailLoading}
+          pullRequestDetailError={pullRequestDetailError}
+          onActivatePane={setActivePane}
+          onSelectIssue={setSelectedIssueNumber}
+        />
+        {isFilterModalOpen ? (
+          <FiltersModal
+            filters={filters}
+            issueCount={overview?.issues.length ?? 0}
+            matchingIssueCount={visibleIssues.length}
+            onToggleOpenPrOnly={toggleOpenPrOnlyFilter}
+            onClose={() => setActiveModal(null)}
+          />
+        ) : null}
+        {isSettingsModalOpen ? (
+          <SettingsModal
+            selectedThemeName={themeName}
+            highlightedThemeName={highlightedThemeName}
+            onHighlightTheme={setHighlightedThemeName}
+            onSelectTheme={setThemeName}
+            onClose={() => setActiveModal(null)}
+          />
+        ) : null}
+      </box>
+    </ThemeProvider>
   );
 }
 
@@ -368,6 +434,7 @@ function Header({
   lastRefreshedAt: string | null;
   loading: boolean;
 }) {
+  const theme = useTheme();
   const { width } = useTerminalDimensions();
   const repoText = config.ok ? config.fullName : "Repository not configured";
   const refreshText = lastRefreshedAt
@@ -382,28 +449,28 @@ function Header({
     <box
       border
       borderStyle="rounded"
-      borderColor="#315a72"
+      borderColor={theme.colors.border}
       padding={1}
       minHeight={compact ? 4 : 5}
-      backgroundColor="#0b141b"
+      backgroundColor={theme.colors.chromeBackground}
       flexDirection={compact ? "column" : "row"}
       alignItems={compact ? "stretch" : "flex-start"}
       gap={1}
     >
       <box width={compact ? "100%" : "35%"} flexDirection="column">
-        <text fg="#f9f6ef">
+        <text fg={theme.colors.textPrimary}>
           <strong>ExecTUI</strong>
-          <span fg="#6f91a4"> · workflow cockpit for Codex issues</span>
+          <span fg={theme.colors.textMuted}> · workflow cockpit for Codex issues</span>
         </text>
-        <text fg="#8ed7c6">{truncateHeaderText(repoText, leftChars)}</text>
+        <text fg={theme.colors.textAccent}>{truncateHeaderText(repoText, leftChars)}</text>
       </box>
 
       {compact ? (
         <box width="100%" flexDirection="row" justifyContent="space-between">
-          <text fg="#f5b85c">
+          <text fg={theme.colors.textHighlight}>
             <strong>{truncateHeaderText(activePaneLabel(activePane), centerChars)}</strong>
           </text>
-          <text fg="#6f91a4">
+          <text fg={theme.colors.textMuted}>
             {truncateHeaderText(
               `${issueCount} issues · ${pullRequestCount} PRs`,
               rightChars,
@@ -412,10 +479,10 @@ function Header({
         </box>
       ) : (
         <box width="30%" flexDirection="column" alignItems="center">
-          <text fg="#f5b85c">
+          <text fg={theme.colors.textHighlight}>
             <strong>{truncateHeaderText(activePaneLabel(activePane), centerChars)}</strong>
           </text>
-          <text fg="#6f91a4">
+          <text fg={theme.colors.textMuted}>
             {truncateHeaderText(
               `${issueCount} issues · ${pullRequestCount} open PRs`,
               centerChars,
@@ -425,17 +492,17 @@ function Header({
       )}
 
       <box width={compact ? "100%" : "35%"} flexDirection="column" alignItems={compact ? "flex-start" : "flex-end"}>
-        <text fg={loading ? "#f5b85c" : "#8ed7c6"}>
+        <text fg={loading ? theme.colors.textWarning : theme.colors.textAccent}>
           {truncateHeaderText(
             loading ? "Refreshing GitHub data..." : refreshText,
             rightChars,
           )}
         </text>
-        <text fg="#6f91a4">
+        <text fg={theme.colors.textMuted}>
           {truncateHeaderText(
             compact
-              ? `←/→ switch · Ctrl+D ${showIssueList ? "hide" : "show"} issues · Ctrl+F filters`
-              : `Ctrl+D ${showIssueList ? "hide" : "show"} issues · Ctrl+F filters · Esc quit`,
+              ? `←/→ switch · Ctrl+D ${showIssueList ? "hide" : "show"} · Ctrl+F filters · Ctrl+T theme`
+              : `Ctrl+D ${showIssueList ? "hide" : "show"} issues · Ctrl+F filters · Ctrl+T settings · Esc quit`,
             rightChars,
           )}
         </text>
@@ -610,12 +677,13 @@ function PaneTabs({
   onSelectPane: (pane: AppPane) => void;
   compact?: boolean;
 }) {
+  const theme = useTheme();
   return (
     <box
       border
       borderStyle="rounded"
-      borderColor="#315a72"
-      backgroundColor="#0b141b"
+      borderColor={theme.colors.border}
+      backgroundColor={theme.colors.chromeBackground}
       padding={1}
       flexDirection="row"
       gap={1}
@@ -628,14 +696,18 @@ function PaneTabs({
             key={pane}
             border
             borderStyle="single"
-            borderColor={selected ? "#f5b85c" : "#315a72"}
-            backgroundColor={selected ? "#173042" : "#10212b"}
+            borderColor={selected ? theme.colors.focusBorder : theme.colors.border}
+            backgroundColor={
+              selected
+                ? theme.colors.panelBackgroundSelected
+                : theme.colors.panelBackgroundMuted
+            }
             paddingX={compact ? 1 : 2}
             paddingY={0}
             focusable
             onMouseDown={() => onSelectPane(pane)}
           >
-            <text fg={selected ? "#f5b85c" : "#9bb4c4"}>
+            <text fg={selected ? theme.colors.textHighlight : theme.colors.textSecondary}>
               <strong>{compact ? compactPaneLabel(pane) : fullPaneLabel(pane)}</strong>
             </text>
           </box>
@@ -670,6 +742,14 @@ function nextPane(current: AppPane, delta: 1 | -1, panes: AppPane[]): AppPane {
 
 function getVisiblePanes(showIssueList: boolean): AppPane[] {
   return allPanes.filter((pane) => showIssueList || pane !== "issues");
+}
+
+function moveThemeSelection(current: ThemeName, delta: 1 | -1): ThemeName {
+  const themes = getThemeList();
+  const index = themes.findIndex((theme) => theme.name === current);
+  const baseIndex = index >= 0 ? index : 0;
+  const nextIndex = (baseIndex + delta + themes.length) % themes.length;
+  return themes[nextIndex]?.name ?? current;
 }
 
 function fullPaneLabel(pane: AppPane) {

@@ -1,6 +1,7 @@
 import { SyntaxStyle } from "@opentui/core";
 import { marked, type Token, type Tokens } from "marked";
 import type { ReactNode } from "react";
+import { useTheme, type AppTheme } from "../lib/theme";
 
 const codeStyle = SyntaxStyle.create();
 
@@ -9,6 +10,7 @@ type MarkdownDocumentProps = {
 };
 
 export function MarkdownDocument({ content }: MarkdownDocumentProps) {
+  const theme = useTheme();
   const source = content.trim() || "_No content provided._";
   const tokens = marked.lexer(source, {
     gfm: true,
@@ -18,7 +20,12 @@ export function MarkdownDocument({ content }: MarkdownDocumentProps) {
   return (
     <box flexDirection="column" gap={1}>
       {tokens.map((token, index) => (
-        <MarkdownBlock token={token} key={`block-${index}-${token.type}`} depth={0} />
+        <MarkdownBlock
+          token={token}
+          key={`block-${index}-${token.type}`}
+          depth={0}
+          theme={theme}
+        />
       ))}
     </box>
   );
@@ -27,27 +34,36 @@ export function MarkdownDocument({ content }: MarkdownDocumentProps) {
 function MarkdownBlock({
   token,
   depth,
+  theme,
 }: {
   token: Token;
   depth: number;
+  theme: AppTheme;
 }) {
   switch (token.type) {
     case "heading":
-      return <MarkdownHeading token={token as Tokens.Heading} />;
+      return <MarkdownHeading token={token as Tokens.Heading} theme={theme} />;
     case "paragraph":
-      return <MarkdownParagraph tokens={(token as Tokens.Paragraph).tokens ?? []} />;
+      return (
+        <MarkdownParagraph
+          tokens={(token as Tokens.Paragraph).tokens ?? []}
+          theme={theme}
+        />
+      );
     case "text":
-      return <MarkdownParagraph tokens={(token as Tokens.Text).tokens ?? [token]} />;
+      return (
+        <MarkdownParagraph tokens={(token as Tokens.Text).tokens ?? [token]} theme={theme} />
+      );
     case "code":
-      return <MarkdownCodeBlock token={token as Tokens.Code} />;
+      return <MarkdownCodeBlock token={token as Tokens.Code} theme={theme} />;
     case "blockquote":
       const blockquote = token as Tokens.Blockquote;
       return (
         <box
           border
           borderStyle="single"
-          borderColor="#3d697d"
-          backgroundColor="#112028"
+          borderColor={theme.colors.quoteBorder}
+          backgroundColor={theme.colors.quoteBackground}
           padding={1}
         >
           <box flexDirection="column" gap={1}>
@@ -56,71 +72,72 @@ function MarkdownBlock({
                 token={child}
                 key={`blockquote-${depth}-${index}-${child.type}`}
                 depth={depth + 1}
+                theme={theme}
               />
             ))}
           </box>
         </box>
       );
     case "list":
-      return <MarkdownList token={token as Tokens.List} depth={depth} />;
+      return <MarkdownList token={token as Tokens.List} depth={depth} theme={theme} />;
     case "hr":
       return (
-        <text fg="#315a72">
+        <text fg={theme.colors.border}>
           <span>────────────────────────────────────────</span>
         </text>
       );
     case "table":
-      return <MarkdownTableFallback token={token as Tokens.Table} />;
+      return <MarkdownTableFallback token={token as Tokens.Table} theme={theme} />;
     case "html":
-      return renderHtmlToken(token as Tokens.HTML);
+      return renderHtmlToken(token as Tokens.HTML, theme);
     default:
       return null;
   }
 }
 
-function MarkdownHeading({ token }: { token: Tokens.Heading }) {
+function MarkdownHeading({ token, theme }: { token: Tokens.Heading; theme: AppTheme }) {
   const color =
     token.depth === 1
-      ? "#f5b85c"
+      ? theme.colors.textHighlight
       : token.depth === 2
-        ? "#8ed7c6"
+        ? theme.colors.textAccent
         : token.depth === 3
-          ? "#d6f0ea"
-          : "#d9e5ec";
+          ? theme.colors.textAccentSoft
+          : theme.colors.textSecondary;
 
   return (
     <box
       border
       borderStyle="single"
-      borderColor="#284556"
-      backgroundColor="#10212b"
+      borderColor={theme.colors.borderMuted}
+      backgroundColor={theme.colors.panelBackgroundMuted}
       padding={1}
     >
       <text fg={color}>
-        <strong>{renderInlineTokens(token.tokens ?? [])}</strong>
+        <strong>{renderInlineTokens(token.tokens ?? [], theme)}</strong>
       </text>
     </box>
   );
 }
 
-function MarkdownParagraph({ tokens }: { tokens: Token[] }) {
-  return <text fg="#d9e5ec">{renderInlineTokens(tokens)}</text>;
+function MarkdownParagraph({ tokens, theme }: { tokens: Token[]; theme: AppTheme }) {
+  return <text fg={theme.colors.textSecondary}>{renderInlineTokens(tokens, theme)}</text>;
 }
 
-function MarkdownCodeBlock({ token }: { token: Tokens.Code }) {
+function MarkdownCodeBlock({ token, theme }: { token: Tokens.Code; theme: AppTheme }) {
   const language = normalizeLanguage(token.lang);
 
   return (
     <box
       border
       borderStyle="single"
-      borderColor="#315a72"
-      backgroundColor="#0d1821"
+      borderColor={theme.colors.border}
+      backgroundColor={theme.colors.panelBackground}
       padding={1}
       flexDirection="column"
       gap={1}
     >
-      <text fg="#8ed7c6">
+      <text fg={theme.colors.textAccent}>
         <strong>{language || "text"}</strong>
       </text>
       <code
@@ -135,9 +152,11 @@ function MarkdownCodeBlock({ token }: { token: Tokens.Code }) {
 function MarkdownList({
   token,
   depth,
+  theme,
 }: {
   token: Tokens.List;
   depth: number;
+  theme: AppTheme;
 }) {
   return (
     <box flexDirection="column" gap={1}>
@@ -152,11 +171,11 @@ function MarkdownList({
 
         return (
           <box key={`list-${depth}-${index}`} flexDirection="row" gap={1}>
-            <text fg="#8ed7c6">
+            <text fg={theme.colors.textAccent}>
               <strong>{marker}</strong>
             </text>
             <box flexDirection="column" flexGrow={1} gap={1}>
-              {renderListItemContent(item, depth + 1)}
+              {renderListItemContent(item, depth + 1, theme)}
             </box>
           </box>
         );
@@ -165,13 +184,13 @@ function MarkdownList({
   );
 }
 
-function MarkdownTableFallback({ token }: { token: Tokens.Table }) {
+function MarkdownTableFallback({ token, theme }: { token: Tokens.Table; theme: AppTheme }) {
   const header = token.header.map((cell) => cell.text).join(" | ");
   const rows = token.rows.map((row) => row.map((cell) => cell.text).join(" | "));
   const content = [header, ...rows].join("\n");
 
   return (
-    <box border borderStyle="single" borderColor="#315a72" padding={1}>
+    <box border borderStyle="single" borderColor={theme.colors.border} padding={1}>
       <code
         content={content}
         filetype="text"
@@ -181,9 +200,9 @@ function MarkdownTableFallback({ token }: { token: Tokens.Table }) {
   );
 }
 
-function renderListItemContent(item: Tokens.ListItem, depth: number) {
+function renderListItemContent(item: Tokens.ListItem, depth: number, theme: AppTheme) {
   if (!item.tokens.length) {
-    return <text fg="#d9e5ec">{item.text}</text>;
+    return <text fg={theme.colors.textSecondary}>{item.text}</text>;
   }
 
   return item.tokens.map((token, index) => (
@@ -191,46 +210,53 @@ function renderListItemContent(item: Tokens.ListItem, depth: number) {
       token={token}
       key={`list-item-${depth}-${index}-${token.type}`}
       depth={depth}
+      theme={theme}
     />
   ));
 }
 
-function renderInlineTokens(tokens: Token[]): ReactNode[] {
-  return tokens.flatMap((token, index) => renderInlineToken(token, `${token.type}-${index}`));
+function renderInlineTokens(tokens: Token[], theme: AppTheme): ReactNode[] {
+  return tokens.flatMap((token, index) =>
+    renderInlineToken(token, `${token.type}-${index}`, theme),
+  );
 }
 
-function renderInlineToken(token: Token, key: string): ReactNode[] {
+function renderInlineToken(token: Token, key: string, theme: AppTheme): ReactNode[] {
   switch (token.type) {
     case "text":
     case "escape":
       return [token.text];
     case "strong":
-      return [<strong key={key}>{renderInlineTokens(token.tokens ?? [])}</strong>];
+      return [<strong key={key}>{renderInlineTokens(token.tokens ?? [], theme)}</strong>];
     case "em":
-      return [<em key={key}>{renderInlineTokens(token.tokens ?? [])}</em>];
+      return [<em key={key}>{renderInlineTokens(token.tokens ?? [], theme)}</em>];
     case "del":
       return [
-        <span key={key} fg="#6f91a4">
-          {renderInlineTokens(token.tokens ?? [])}
+        <span key={key} fg={theme.colors.textMuted}>
+          {renderInlineTokens(token.tokens ?? [], theme)}
         </span>,
       ];
     case "codespan":
       return [
-        <span key={key} fg="#f5b85c" bg="#13232d">
+        <span
+          key={key}
+          fg={theme.colors.inlineCodeForeground}
+          bg={theme.colors.inlineCodeBackground}
+        >
           {token.text}
         </span>,
       ];
     case "link":
       return [
-        <span key={key} fg="#8ed7c6">
-          <u>{renderInlineTokens(token.tokens ?? [])}</u>
+        <span key={key} fg={theme.colors.textAccent}>
+          <u>{renderInlineTokens(token.tokens ?? [], theme)}</u>
         </span>,
       ];
     case "br":
       return [<br />];
     default:
       if ("tokens" in token && Array.isArray(token.tokens)) {
-        return [<span key={key}>{renderInlineTokens(token.tokens)}</span>];
+        return [<span key={key}>{renderInlineTokens(token.tokens, theme)}</span>];
       }
 
       return [];
@@ -241,7 +267,7 @@ function normalizeLanguage(value: string | undefined) {
   return value?.trim().toLowerCase().split(/\s+/)[0];
 }
 
-function renderHtmlToken(token: Tokens.HTML) {
+function renderHtmlToken(token: Tokens.HTML, theme: AppTheme) {
   const raw = token.text.trim();
   if (!raw) {
     return null;
@@ -262,11 +288,11 @@ function renderHtmlToken(token: Tokens.HTML) {
       <box
         border
         borderStyle="single"
-        borderColor="#3d697d"
-        backgroundColor="#112028"
+        borderColor={theme.colors.quoteBorder}
+        backgroundColor={theme.colors.quoteBackground}
         padding={1}
       >
-        <text fg="#8ed7c6">
+        <text fg={theme.colors.textAccent}>
           <strong>{summaryText}</strong>
         </text>
       </box>
@@ -276,8 +302,10 @@ function renderHtmlToken(token: Tokens.HTML) {
   if (/^<img\b/i.test(raw)) {
     const altText = raw.match(/\balt="([^"]*)"/i)?.[1]?.trim();
     return (
-      <box border borderStyle="single" borderColor="#315a72" padding={1}>
-        <text fg="#6f91a4">{altText ? `Image: ${altText}` : "Image omitted"}</text>
+      <box border borderStyle="single" borderColor={theme.colors.border} padding={1}>
+        <text fg={theme.colors.textMuted}>
+          {altText ? `Image: ${altText}` : "Image omitted"}
+        </text>
       </box>
     );
   }
@@ -288,8 +316,8 @@ function renderHtmlToken(token: Tokens.HTML) {
   }
 
   return (
-    <box border borderStyle="single" borderColor="#315a72" padding={1}>
-      <text fg="#9bb4c4">{stripped}</text>
+    <box border borderStyle="single" borderColor={theme.colors.border} padding={1}>
+      <text fg={theme.colors.textSecondary}>{stripped}</text>
     </box>
   );
 }

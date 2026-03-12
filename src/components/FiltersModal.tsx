@@ -1,4 +1,5 @@
 import { useTerminalDimensions } from "@opentui/react";
+import { useTheme } from "../lib/theme";
 import type { AppFilters } from "../types";
 
 type FiltersModalProps = {
@@ -16,6 +17,7 @@ export function FiltersModal({
   onToggleOpenPrOnly,
   onClose,
 }: FiltersModalProps) {
+  const theme = useTheme();
   const { width } = useTerminalDimensions();
   const modalWidth = Math.max(34, Math.min(62, width - 6));
 
@@ -28,55 +30,61 @@ export function FiltersModal({
       height="100%"
       justifyContent="center"
       alignItems="center"
-      backgroundColor="#03090d"
+      backgroundColor={theme.colors.overlayBackground}
     >
       <box
         width={modalWidth}
         border
         borderStyle="double"
-        borderColor="#f5b85c"
-        backgroundColor="#0d1821"
+        borderColor={theme.colors.focusBorder}
+        backgroundColor={theme.colors.panelBackground}
         padding={1}
         flexDirection="column"
         gap={1}
       >
-        <text fg="#f5b85c">
+        <text fg={theme.colors.textHighlight}>
           <strong>Filters</strong>
         </text>
-        <text fg="#6f91a4">
+        <text fg={theme.colors.textMuted}>
           Ctrl+F or Esc closes this modal. Space or Enter toggles the active filter.
         </text>
         <box
           border
           borderStyle="single"
-          borderColor={filters.openPrOnly ? "#f5b85c" : "#315a72"}
-          backgroundColor={filters.openPrOnly ? "#173042" : "#10212b"}
+          borderColor={filters.openPrOnly ? theme.colors.focusBorder : theme.colors.border}
+          backgroundColor={
+            filters.openPrOnly
+              ? theme.colors.panelBackgroundSelected
+              : theme.colors.panelBackgroundMuted
+          }
           padding={1}
           focusable
           onMouseDown={onToggleOpenPrOnly}
         >
           <box flexDirection="column" gap={0}>
-            <text fg={filters.openPrOnly ? "#f5b85c" : "#f9f6ef"}>
+            <text
+              fg={filters.openPrOnly ? theme.colors.textHighlight : theme.colors.textPrimary}
+            >
               <strong>{filters.openPrOnly ? "[x]" : "[ ]"} Issues with an open PR</strong>
             </text>
-            <text fg="#6f91a4">
+            <text fg={theme.colors.textMuted}>
               {matchingIssueCount} matching issues out of {issueCount} open issues
             </text>
           </box>
         </box>
         <box flexDirection="row" justifyContent="space-between">
-          <text fg="#8ed7c6">
+          <text fg={theme.colors.textAccent}>
             {filters.openPrOnly ? "Open-PR filter is enabled." : "Showing all open issues."}
           </text>
           <box
             border
             borderStyle="single"
-            borderColor="#315a72"
+            borderColor={theme.colors.border}
             paddingX={1}
             focusable
             onMouseDown={onClose}
           >
-            <text fg="#d9e5ec">Close</text>
+            <text fg={theme.colors.textSecondary}>Close</text>
           </box>
         </box>
       </box>

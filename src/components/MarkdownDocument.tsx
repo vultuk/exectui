@@ -72,11 +72,7 @@ function MarkdownBlock({
     case "table":
       return <MarkdownTableFallback token={token as Tokens.Table} />;
     case "html":
-      return (
-        <box border borderStyle="single" borderColor="#315a72" padding={1}>
-          <text fg="#9bb4c4">{token.text}</text>
-        </box>
-      );
+      return renderHtmlToken(token as Tokens.HTML);
     default:
       return null;
   }
@@ -243,4 +239,69 @@ function renderInlineToken(token: Token, key: string): ReactNode[] {
 
 function normalizeLanguage(value: string | undefined) {
   return value?.trim().toLowerCase().split(/\s+/)[0];
+}
+
+function renderHtmlToken(token: Tokens.HTML) {
+  const raw = token.text.trim();
+  if (!raw) {
+    return null;
+  }
+
+  if (/^<\/?details\b/i.test(raw)) {
+    return null;
+  }
+
+  const summaryMatch = raw.match(/<summary[^>]*>([\s\S]*?)<\/summary>/i);
+  if (summaryMatch) {
+    const summaryText = stripHtml(summaryMatch[1] ?? "").trim();
+    if (!summaryText) {
+      return null;
+    }
+
+    return (
+      <box
+        border
+        borderStyle="single"
+        borderColor="#3d697d"
+        backgroundColor="#112028"
+        padding={1}
+      >
+        <text fg="#8ed7c6">
+          <strong>{summaryText}</strong>
+        </text>
+      </box>
+    );
+  }
+
+  if (/^<img\b/i.test(raw)) {
+    const altText = raw.match(/\balt="([^"]*)"/i)?.[1]?.trim();
+    return (
+      <box border borderStyle="single" borderColor="#315a72" padding={1}>
+        <text fg="#6f91a4">{altText ? `Image: ${altText}` : "Image omitted"}</text>
+      </box>
+    );
+  }
+
+  const stripped = stripHtml(raw).trim();
+  if (!stripped) {
+    return null;
+  }
+
+  return (
+    <box border borderStyle="single" borderColor="#315a72" padding={1}>
+      <text fg="#9bb4c4">{stripped}</text>
+    </box>
+  );
+}
+
+function stripHtml(value: string) {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
 }

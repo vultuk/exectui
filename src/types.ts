@@ -1,5 +1,9 @@
 export type AppPane = "issues" | "issue-detail" | "pull-request";
 
+export type AppFilters = {
+  openPrOnly: boolean;
+};
+
 export type RepoConfig =
   | {
       ok: true;

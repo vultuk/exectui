@@ -57,6 +57,7 @@ export function PullRequestPane({
   return (
     <box
       flexGrow={1}
+      flexBasis={0}
       minWidth={44}
       border
       borderStyle="rounded"

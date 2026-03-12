@@ -47,7 +47,8 @@ export function IssueDetailPane({
 
   return (
     <box
-      width="37%"
+      flexGrow={1}
+      flexBasis={0}
       minWidth={42}
       border
       borderStyle="rounded"

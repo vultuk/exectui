@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react";
+import { FiltersModal } from "./components/FiltersModal";
 import { IssueDetailPane } from "./components/IssueDetailPane";
 import { IssueListPane } from "./components/IssueListPane";
 import { PullRequestPane } from "./components/PullRequestPane";
@@ -11,18 +12,22 @@ import {
 } from "./lib/github";
 import { formatTimestamp } from "./lib/format";
 import type {
+  AppFilters,
   AppPane,
   IssueDetail,
+  IssueSummary,
   PullRequestDetail,
+  PullRequestSummary,
   RepoConfig,
   WorkflowOverview,
 } from "./types";
 
-const panes: AppPane[] = ["issues", "issue-detail", "pull-request"];
+const allPanes: AppPane[] = ["issues", "issue-detail", "pull-request"];
 
 export function App() {
   const renderer = useRenderer();
   const [activePane, setActivePane] = useState<AppPane>("issues");
+  const [showIssueList, setShowIssueList] = useState(true);
   const [config] = useState<RepoConfig>(() => getRepoConfig());
   const [overview, setOverview] = useState<WorkflowOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
@@ -38,31 +43,84 @@ export function App() {
   const [pullRequestDetailError, setPullRequestDetailError] = useState<string | null>(null);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [filters, setFilters] = useState<AppFilters>({ openPrOnly: false });
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const visiblePanes = getVisiblePanes(showIssueList);
+
+  const visibleIssues = applyIssueFilters(
+    overview?.issues ?? [],
+    overview?.openPullRequestsByIssueNumber ?? {},
+    filters,
+  );
 
   const selectedIssue =
-    overview?.issues.find((issue) => issue.number === selectedIssueNumber) ?? null;
+    visibleIssues.find((issue) => issue.number === selectedIssueNumber) ?? null;
   const selectedPullRequestSummary =
     selectedIssue && overview
       ? overview.openPullRequestsByIssueNumber[selectedIssue.number] ?? null
       : null;
 
+  const toggleOpenPrOnlyFilter = () => {
+    const nextFilters = { ...filters, openPrOnly: !filters.openPrOnly };
+    const nextVisibleIssues = applyIssueFilters(
+      overview?.issues ?? [],
+      overview?.openPullRequestsByIssueNumber ?? {},
+      nextFilters,
+    );
+
+    setFilters(nextFilters);
+    setSelectedIssueNumber((current) =>
+      chooseNextSelectedIssueNumberFromList(current, nextVisibleIssues),
+    );
+  };
+
   useKeyboard((key) => {
+    if (key.ctrl && key.name === "d") {
+      setShowIssueList((current) => {
+        const next = !current;
+        if (!next && activePane === "issues") {
+          setActivePane("issue-detail");
+        }
+        return next;
+      });
+      return;
+    }
+
+    if (key.ctrl && key.name === "f") {
+      setIsFilterModalOpen((current) => !current);
+      return;
+    }
+
+    if (isFilterModalOpen) {
+      if (key.name === "escape") {
+        setIsFilterModalOpen(false);
+        return;
+      }
+
+      if (key.name === "space" || key.name === "enter") {
+        toggleOpenPrOnlyFilter();
+        return;
+      }
+
+      return;
+    }
+
     if (key.name === "escape") {
       renderer.destroy();
       return;
     }
 
     if (key.name === "tab" || key.name === "right") {
-      setActivePane((current) => nextPane(current, 1));
+      setActivePane((current) => nextPane(current, 1, visiblePanes));
       return;
     }
 
     if ((key.shift && key.name === "tab") || key.name === "left") {
-      setActivePane((current) => nextPane(current, -1));
+      setActivePane((current) => nextPane(current, -1, visiblePanes));
       return;
     }
 
-    if (key.name === "1") {
+    if (key.name === "1" && showIssueList) {
       setActivePane("issues");
       return;
     }
@@ -84,19 +142,19 @@ export function App() {
 
     if (
       activePane === "issues" &&
-      overview?.issues.length &&
+      visibleIssues.length &&
       (key.name === "down" || key.name === "j")
     ) {
-      setSelectedIssueNumber((current) => moveSelectedIssue(overview, current, 1));
+      setSelectedIssueNumber((current) => moveSelectedIssue(visibleIssues, current, 1));
       return;
     }
 
     if (
       activePane === "issues" &&
-      overview?.issues.length &&
+      visibleIssues.length &&
       (key.name === "up" || key.name === "k")
     ) {
-      setSelectedIssueNumber((current) => moveSelectedIssue(overview, current, -1));
+      setSelectedIssueNumber((current) => moveSelectedIssue(visibleIssues, current, -1));
       return;
     }
 
@@ -104,6 +162,12 @@ export function App() {
       renderer.destroy();
     }
   }, { release: false });
+
+  useEffect(() => {
+    if (!visiblePanes.includes(activePane)) {
+      setActivePane(visiblePanes[0] ?? "issue-detail");
+    }
+  }, [activePane, visiblePanes]);
 
   useEffect(() => {
     if (!config.ok) {
@@ -148,6 +212,12 @@ export function App() {
       clearInterval(timer);
     };
   }, [config, refreshNonce]);
+
+  useEffect(() => {
+    setSelectedIssueNumber((current) =>
+      chooseNextSelectedIssueNumberFromList(current, visibleIssues),
+    );
+  }, [visibleIssues]);
 
   useEffect(() => {
     if (!config.ok || !selectedIssueNumber) {
@@ -231,6 +301,7 @@ export function App() {
       <Header
         config={config}
         activePane={activePane}
+        showIssueList={showIssueList}
         issueCount={overview?.issues.length ?? 0}
         pullRequestCount={overview?.openPullRequests.length ?? 0}
         lastRefreshedAt={lastRefreshedAt}
@@ -238,18 +309,20 @@ export function App() {
       />
 
       <box flexDirection="row" flexGrow={1} gap={1}>
-        <IssueListPane
-          issues={overview?.issues ?? []}
-          linkedPullRequestsByIssueNumber={
-            overview?.openPullRequestsByIssueNumber ?? {}
-          }
-          selectedIssueNumber={selectedIssueNumber}
-          focused={activePane === "issues"}
-          loading={overviewLoading}
-          error={overviewError}
-          onActivatePane={() => setActivePane("issues")}
-          onSelectIssue={setSelectedIssueNumber}
-        />
+        {showIssueList ? (
+          <IssueListPane
+            issues={visibleIssues}
+            linkedPullRequestsByIssueNumber={
+              overview?.openPullRequestsByIssueNumber ?? {}
+            }
+            selectedIssueNumber={selectedIssueNumber}
+            focused={activePane === "issues"}
+            loading={overviewLoading}
+            error={overviewError}
+            onActivatePane={() => setActivePane("issues")}
+            onSelectIssue={setSelectedIssueNumber}
+          />
+        ) : null}
         <IssueDetailPane
           issue={issueDetail}
           loading={issueDetailLoading}
@@ -264,6 +337,15 @@ export function App() {
           focused={activePane === "pull-request"}
         />
       </box>
+      {isFilterModalOpen ? (
+        <FiltersModal
+          filters={filters}
+          issueCount={overview?.issues.length ?? 0}
+          matchingIssueCount={visibleIssues.length}
+          onToggleOpenPrOnly={toggleOpenPrOnlyFilter}
+          onClose={() => setIsFilterModalOpen(false)}
+        />
+      ) : null}
     </box>
   );
 }
@@ -271,6 +353,7 @@ export function App() {
 function Header({
   config,
   activePane,
+  showIssueList,
   issueCount,
   pullRequestCount,
   lastRefreshedAt,
@@ -278,6 +361,7 @@ function Header({
 }: {
   config: RepoConfig;
   activePane: AppPane;
+  showIssueList: boolean;
   issueCount: number;
   pullRequestCount: number;
   lastRefreshedAt: string | null;
@@ -333,7 +417,7 @@ function Header({
         </text>
         <text fg="#6f91a4">
           {truncateHeaderText(
-            "Tab/Shift+Tab switch panes · R refresh · Esc quit",
+            `Ctrl+D ${showIssueList ? "hide" : "show"} issues · Ctrl+F filters · Esc quit`,
             rightChars,
           )}
         </text>
@@ -346,36 +430,22 @@ function chooseNextSelectedIssueNumber(
   current: number | null,
   overview: WorkflowOverview,
 ): number | null {
-  if (overview.issues.length === 0) {
-    return null;
-  }
-
-  if (current && overview.issues.some((issue) => issue.number === current)) {
-    return current;
-  }
-
-  return overview.issues[0]?.number ?? null;
-}
-
-function nextPane(current: AppPane, delta: 1 | -1): AppPane {
-  const index = panes.indexOf(current);
-  const nextIndex = (index + delta + panes.length) % panes.length;
-  return panes[nextIndex] ?? "issues";
+  return chooseNextSelectedIssueNumberFromList(current, overview.issues);
 }
 
 function moveSelectedIssue(
-  overview: WorkflowOverview,
+  issues: IssueSummary[],
   current: number | null,
   delta: 1 | -1,
 ): number | null {
-  if (overview.issues.length === 0) {
+  if (issues.length === 0) {
     return null;
   }
 
-  const currentIndex = overview.issues.findIndex((issue) => issue.number === current);
+  const currentIndex = issues.findIndex((issue) => issue.number === current);
   const baseIndex = currentIndex >= 0 ? currentIndex : 0;
-  const nextIndex = Math.max(0, Math.min(overview.issues.length - 1, baseIndex + delta));
-  return overview.issues[nextIndex]?.number ?? current;
+  const nextIndex = Math.max(0, Math.min(issues.length - 1, baseIndex + delta));
+  return issues[nextIndex]?.number ?? current;
 }
 
 function activePaneLabel(activePane: AppPane): string {
@@ -399,4 +469,48 @@ function truncateHeaderText(value: string, maxLength: number) {
   }
 
   return `${value.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
+function nextPane(current: AppPane, delta: 1 | -1, panes: AppPane[]): AppPane {
+  if (panes.length === 0) {
+    return current;
+  }
+
+  const index = panes.indexOf(current);
+  const baseIndex = index >= 0 ? index : 0;
+  const nextIndex = (baseIndex + delta + panes.length) % panes.length;
+  return panes[nextIndex] ?? panes[0] ?? current;
+}
+
+function getVisiblePanes(showIssueList: boolean): AppPane[] {
+  return allPanes.filter((pane) => showIssueList || pane !== "issues");
+}
+
+function chooseNextSelectedIssueNumberFromList(
+  current: number | null,
+  issues: IssueSummary[],
+): number | null {
+  if (issues.length === 0) {
+    return null;
+  }
+
+  if (current && issues.some((issue) => issue.number === current)) {
+    return current;
+  }
+
+  return issues[0]?.number ?? null;
+}
+
+function applyIssueFilters(
+  issues: IssueSummary[],
+  openPullRequestsByIssueNumber: Record<number, PullRequestSummary>,
+  filters: AppFilters,
+) {
+  return issues.filter((issue) => {
+    if (filters.openPrOnly && !openPullRequestsByIssueNumber[issue.number]) {
+      return false;
+    }
+
+    return true;
+  });
 }

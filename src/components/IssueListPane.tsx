@@ -1,9 +1,9 @@
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useEffect, useRef } from "react";
 import type { IssueSummary, PullRequestSummary } from "../types";
-import { getIssuePreview, toIssueSelectDescription } from "../lib/format";
+import { toIssueSelectDescription } from "../lib/format";
 
-const ISSUE_CARD_WIDTH_HINT = 23;
+const ISSUE_CARD_WIDTH_HINT = 52;
 const ISSUE_CARD_STRIDE = 5;
 
 type IssueListPaneProps = {
@@ -53,8 +53,9 @@ export function IssueListPane({
 
   return (
     <box
-      width="26%"
-      minWidth={30}
+      width={72}
+      minWidth={56}
+      maxWidth={76}
       border
       borderStyle="rounded"
       borderColor="#315a72"
@@ -132,15 +133,6 @@ export function IssueListPane({
             </box>
           </scrollbox>
         )}
-        {selectedIssueNumber ? (
-          <box border borderStyle="single" borderColor="#315a72" padding={1}>
-            <text fg="#6f91a4">
-              {getIssuePreview(
-                issues.find((issue) => issue.number === selectedIssueNumber) ?? issues[0]!,
-              )}
-            </text>
-          </box>
-        ) : null}
       </box>
     </box>
   );

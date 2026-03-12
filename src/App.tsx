@@ -26,6 +26,10 @@ const allPanes: AppPane[] = ["issues", "issue-detail", "pull-request"];
 
 export function App() {
   const renderer = useRenderer();
+  const { width } = useTerminalDimensions();
+  const layoutMode = getLayoutMode(width);
+  const issueListWidth = getIssueListWidth(layoutMode, width);
+  const issueTitleMaxLength = getIssueTitleMaxLength(layoutMode, issueListWidth);
   const [activePane, setActivePane] = useState<AppPane>("issues");
   const [showIssueList, setShowIssueList] = useState(true);
   const [config] = useState<RepoConfig>(() => getRepoConfig());
@@ -46,6 +50,7 @@ export function App() {
   const [filters, setFilters] = useState<AppFilters>({ openPrOnly: false });
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const visiblePanes = getVisiblePanes(showIssueList);
+  const primaryContentPane = activePane === "pull-request" ? "pull-request" : "issue-detail";
 
   const visibleIssues = applyIssueFilters(
     overview?.issues ?? [],
@@ -301,6 +306,7 @@ export function App() {
       <Header
         config={config}
         activePane={activePane}
+        layoutMode={layoutMode}
         showIssueList={showIssueList}
         issueCount={overview?.issues.length ?? 0}
         pullRequestCount={overview?.openPullRequests.length ?? 0}
@@ -308,35 +314,28 @@ export function App() {
         loading={overviewLoading || issueDetailLoading || pullRequestDetailLoading}
       />
 
-      <box flexDirection="row" flexGrow={1} gap={1}>
-        {showIssueList ? (
-          <IssueListPane
-            issues={visibleIssues}
-            linkedPullRequestsByIssueNumber={
-              overview?.openPullRequestsByIssueNumber ?? {}
-            }
-            selectedIssueNumber={selectedIssueNumber}
-            focused={activePane === "issues"}
-            loading={overviewLoading}
-            error={overviewError}
-            onActivatePane={() => setActivePane("issues")}
-            onSelectIssue={setSelectedIssueNumber}
-          />
-        ) : null}
-        <IssueDetailPane
-          issue={issueDetail}
-          loading={issueDetailLoading}
-          error={issueDetailError}
-          focused={activePane === "issue-detail"}
-        />
-        <PullRequestPane
-          pullRequestSummary={selectedPullRequestSummary}
-          pullRequest={pullRequestDetail}
-          loading={pullRequestDetailLoading}
-          error={pullRequestDetailError}
-          focused={activePane === "pull-request"}
-        />
-      </box>
+      <ResponsiveBody
+        layoutMode={layoutMode}
+        showIssueList={showIssueList}
+        activePane={activePane}
+        primaryContentPane={primaryContentPane}
+        issueListWidth={issueListWidth}
+        issueTitleMaxLength={issueTitleMaxLength}
+        issues={visibleIssues}
+        linkedPullRequestsByIssueNumber={overview?.openPullRequestsByIssueNumber ?? {}}
+        selectedIssueNumber={selectedIssueNumber}
+        overviewLoading={overviewLoading}
+        overviewError={overviewError}
+        issueDetail={issueDetail}
+        issueDetailLoading={issueDetailLoading}
+        issueDetailError={issueDetailError}
+        pullRequestSummary={selectedPullRequestSummary}
+        pullRequestDetail={pullRequestDetail}
+        pullRequestDetailLoading={pullRequestDetailLoading}
+        pullRequestDetailError={pullRequestDetailError}
+        onActivatePane={setActivePane}
+        onSelectIssue={setSelectedIssueNumber}
+      />
       {isFilterModalOpen ? (
         <FiltersModal
           filters={filters}
@@ -353,6 +352,7 @@ export function App() {
 function Header({
   config,
   activePane,
+  layoutMode,
   showIssueList,
   issueCount,
   pullRequestCount,
@@ -361,6 +361,7 @@ function Header({
 }: {
   config: RepoConfig;
   activePane: AppPane;
+  layoutMode: LayoutMode;
   showIssueList: boolean;
   issueCount: number;
   pullRequestCount: number;
@@ -372,9 +373,10 @@ function Header({
   const refreshText = lastRefreshedAt
     ? `Last refresh ${formatTimestamp(lastRefreshedAt)}`
     : "Waiting for initial sync";
-  const leftChars = Math.max(18, Math.floor(width * 0.32));
-  const centerChars = Math.max(14, Math.floor(width * 0.2));
-  const rightChars = Math.max(20, Math.floor(width * 0.28));
+  const compact = layoutMode === "phone";
+  const leftChars = compact ? Math.max(14, Math.floor(width * 0.4)) : Math.max(18, Math.floor(width * 0.32));
+  const centerChars = compact ? Math.max(12, Math.floor(width * 0.18)) : Math.max(14, Math.floor(width * 0.2));
+  const rightChars = compact ? Math.max(16, Math.floor(width * 0.32)) : Math.max(20, Math.floor(width * 0.28));
 
   return (
     <box
@@ -382,13 +384,13 @@ function Header({
       borderStyle="rounded"
       borderColor="#315a72"
       padding={1}
-      minHeight={5}
+      minHeight={compact ? 4 : 5}
       backgroundColor="#0b141b"
-      flexDirection="row"
-      alignItems="flex-start"
+      flexDirection={compact ? "column" : "row"}
+      alignItems={compact ? "stretch" : "flex-start"}
       gap={1}
     >
-      <box width="35%" flexDirection="column">
+      <box width={compact ? "100%" : "35%"} flexDirection="column">
         <text fg="#f9f6ef">
           <strong>ExecTUI</strong>
           <span fg="#6f91a4"> · workflow cockpit for Codex issues</span>
@@ -396,19 +398,33 @@ function Header({
         <text fg="#8ed7c6">{truncateHeaderText(repoText, leftChars)}</text>
       </box>
 
-      <box width="30%" flexDirection="column" alignItems="center">
-        <text fg="#f5b85c">
-          <strong>{truncateHeaderText(activePaneLabel(activePane), centerChars)}</strong>
-        </text>
-        <text fg="#6f91a4">
-          {truncateHeaderText(
-            `${issueCount} issues · ${pullRequestCount} open PRs`,
-            centerChars,
-          )}
-        </text>
-      </box>
+      {compact ? (
+        <box width="100%" flexDirection="row" justifyContent="space-between">
+          <text fg="#f5b85c">
+            <strong>{truncateHeaderText(activePaneLabel(activePane), centerChars)}</strong>
+          </text>
+          <text fg="#6f91a4">
+            {truncateHeaderText(
+              `${issueCount} issues · ${pullRequestCount} PRs`,
+              rightChars,
+            )}
+          </text>
+        </box>
+      ) : (
+        <box width="30%" flexDirection="column" alignItems="center">
+          <text fg="#f5b85c">
+            <strong>{truncateHeaderText(activePaneLabel(activePane), centerChars)}</strong>
+          </text>
+          <text fg="#6f91a4">
+            {truncateHeaderText(
+              `${issueCount} issues · ${pullRequestCount} open PRs`,
+              centerChars,
+            )}
+          </text>
+        </box>
+      )}
 
-      <box width="35%" flexDirection="column" alignItems="flex-end">
+      <box width={compact ? "100%" : "35%"} flexDirection="column" alignItems={compact ? "flex-start" : "flex-end"}>
         <text fg={loading ? "#f5b85c" : "#8ed7c6"}>
           {truncateHeaderText(
             loading ? "Refreshing GitHub data..." : refreshText,
@@ -417,7 +433,9 @@ function Header({
         </text>
         <text fg="#6f91a4">
           {truncateHeaderText(
-            `Ctrl+D ${showIssueList ? "hide" : "show"} issues · Ctrl+F filters · Esc quit`,
+            compact
+              ? `←/→ switch · Ctrl+D ${showIssueList ? "hide" : "show"} issues · Ctrl+F filters`
+              : `Ctrl+D ${showIssueList ? "hide" : "show"} issues · Ctrl+F filters · Esc quit`,
             rightChars,
           )}
         </text>
@@ -459,6 +477,174 @@ function activePaneLabel(activePane: AppPane): string {
   }
 }
 
+function ResponsiveBody({
+  layoutMode,
+  showIssueList,
+  activePane,
+  primaryContentPane,
+  issueListWidth,
+  issueTitleMaxLength,
+  issues,
+  linkedPullRequestsByIssueNumber,
+  selectedIssueNumber,
+  overviewLoading,
+  overviewError,
+  issueDetail,
+  issueDetailLoading,
+  issueDetailError,
+  pullRequestSummary,
+  pullRequestDetail,
+  pullRequestDetailLoading,
+  pullRequestDetailError,
+  onActivatePane,
+  onSelectIssue,
+}: {
+  layoutMode: LayoutMode;
+  showIssueList: boolean;
+  activePane: AppPane;
+  primaryContentPane: AppPane;
+  issueListWidth: number;
+  issueTitleMaxLength: number;
+  issues: IssueSummary[];
+  linkedPullRequestsByIssueNumber: Record<number, PullRequestSummary>;
+  selectedIssueNumber: number | null;
+  overviewLoading: boolean;
+  overviewError: string | null;
+  issueDetail: IssueDetail | null;
+  issueDetailLoading: boolean;
+  issueDetailError: string | null;
+  pullRequestSummary: PullRequestSummary | null;
+  pullRequestDetail: PullRequestDetail | null;
+  pullRequestDetailLoading: boolean;
+  pullRequestDetailError: string | null;
+  onActivatePane: (pane: AppPane) => void;
+  onSelectIssue: (issueNumber: number) => void;
+}) {
+  const issueListPane = (
+    <IssueListPane
+      issues={issues}
+      linkedPullRequestsByIssueNumber={linkedPullRequestsByIssueNumber}
+      selectedIssueNumber={selectedIssueNumber}
+      width={layoutMode === "phone" ? "100%" : issueListWidth}
+      minWidth={layoutMode === "phone" ? 0 : Math.max(42, issueListWidth - 10)}
+      maxWidth={layoutMode === "phone" ? undefined : issueListWidth + 4}
+      titleMaxLength={issueTitleMaxLength}
+      focused={activePane === "issues"}
+      loading={overviewLoading}
+      error={overviewError}
+      onActivatePane={() => onActivatePane("issues")}
+      onSelectIssue={onSelectIssue}
+    />
+  );
+
+  const issueDetailPane = (
+    <IssueDetailPane
+      issue={issueDetail}
+      loading={issueDetailLoading}
+      error={issueDetailError}
+      focused={activePane === "issue-detail"}
+    />
+  );
+
+  const pullRequestPane = (
+    <PullRequestPane
+      pullRequestSummary={pullRequestSummary}
+      pullRequest={pullRequestDetail}
+      loading={pullRequestDetailLoading}
+      error={pullRequestDetailError}
+      focused={activePane === "pull-request"}
+    />
+  );
+
+  if (layoutMode === "phone") {
+    return (
+      <box flexDirection="column" flexGrow={1} gap={1}>
+        <PaneTabs
+          panes={getVisiblePanes(showIssueList)}
+          activePane={activePane}
+          onSelectPane={onActivatePane}
+          compact
+        />
+        {activePane === "issues" && showIssueList ? issueListPane : null}
+        {activePane === "issue-detail" || (!showIssueList && activePane === "issues")
+          ? issueDetailPane
+          : null}
+        {activePane === "pull-request" ? pullRequestPane : null}
+      </box>
+    );
+  }
+
+  if (layoutMode === "tablet") {
+    return (
+      <box flexDirection="row" flexGrow={1} gap={1}>
+        {showIssueList ? issueListPane : null}
+        <box flexDirection="column" flexGrow={1} flexBasis={0} gap={1}>
+          <PaneTabs
+            panes={["issue-detail", "pull-request"]}
+            activePane={primaryContentPane}
+            onSelectPane={onActivatePane}
+          />
+          {primaryContentPane === "pull-request" ? pullRequestPane : issueDetailPane}
+        </box>
+      </box>
+    );
+  }
+
+  return (
+    <box flexDirection="row" flexGrow={1} gap={1}>
+      {showIssueList ? issueListPane : null}
+      {issueDetailPane}
+      {pullRequestPane}
+    </box>
+  );
+}
+
+function PaneTabs({
+  panes,
+  activePane,
+  onSelectPane,
+  compact = false,
+}: {
+  panes: AppPane[];
+  activePane: AppPane;
+  onSelectPane: (pane: AppPane) => void;
+  compact?: boolean;
+}) {
+  return (
+    <box
+      border
+      borderStyle="rounded"
+      borderColor="#315a72"
+      backgroundColor="#0b141b"
+      padding={1}
+      flexDirection="row"
+      gap={1}
+      justifyContent={compact ? "space-between" : "flex-start"}
+    >
+      {panes.map((pane) => {
+        const selected = pane === activePane;
+        return (
+          <box
+            key={pane}
+            border
+            borderStyle="single"
+            borderColor={selected ? "#f5b85c" : "#315a72"}
+            backgroundColor={selected ? "#173042" : "#10212b"}
+            paddingX={compact ? 1 : 2}
+            paddingY={0}
+            focusable
+            onMouseDown={() => onSelectPane(pane)}
+          >
+            <text fg={selected ? "#f5b85c" : "#9bb4c4"}>
+              <strong>{compact ? compactPaneLabel(pane) : fullPaneLabel(pane)}</strong>
+            </text>
+          </box>
+        );
+      })}
+    </box>
+  );
+}
+
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -484,6 +670,28 @@ function nextPane(current: AppPane, delta: 1 | -1, panes: AppPane[]): AppPane {
 
 function getVisiblePanes(showIssueList: boolean): AppPane[] {
   return allPanes.filter((pane) => showIssueList || pane !== "issues");
+}
+
+function fullPaneLabel(pane: AppPane) {
+  switch (pane) {
+    case "issues":
+      return "Issues";
+    case "issue-detail":
+      return "Issue";
+    case "pull-request":
+      return "PR";
+  }
+}
+
+function compactPaneLabel(pane: AppPane) {
+  switch (pane) {
+    case "issues":
+      return "List";
+    case "issue-detail":
+      return "Issue";
+    case "pull-request":
+      return "PR";
+  }
 }
 
 function chooseNextSelectedIssueNumberFromList(
@@ -513,4 +721,48 @@ function applyIssueFilters(
 
     return true;
   });
+}
+
+type LayoutMode = "phone" | "tablet" | "desktop" | "superwide";
+
+function getLayoutMode(width: number): LayoutMode {
+  if (width < 110) {
+    return "phone";
+  }
+
+  if (width < 180) {
+    return "tablet";
+  }
+
+  if (width < 260) {
+    return "desktop";
+  }
+
+  return "superwide";
+}
+
+function getIssueListWidth(layoutMode: LayoutMode, width: number) {
+  switch (layoutMode) {
+    case "phone":
+      return width;
+    case "tablet":
+      return Math.max(42, Math.min(54, Math.floor(width * 0.34)));
+    case "desktop":
+      return Math.max(58, Math.min(72, Math.floor(width * 0.24)));
+    case "superwide":
+      return Math.max(72, Math.min(92, Math.floor(width * 0.22)));
+  }
+}
+
+function getIssueTitleMaxLength(layoutMode: LayoutMode, issueListWidth: number) {
+  switch (layoutMode) {
+    case "phone":
+      return Math.max(40, issueListWidth - 12);
+    case "tablet":
+      return Math.max(30, issueListWidth - 14);
+    case "desktop":
+      return Math.max(40, issueListWidth - 16);
+    case "superwide":
+      return Math.max(48, issueListWidth - 18);
+  }
 }

@@ -1,3 +1,4 @@
+import { useTerminalDimensions } from "@opentui/react";
 import type { AppFilters } from "../types";
 
 type FiltersModalProps = {
@@ -15,6 +16,9 @@ export function FiltersModal({
   onToggleOpenPrOnly,
   onClose,
 }: FiltersModalProps) {
+  const { width } = useTerminalDimensions();
+  const modalWidth = Math.max(34, Math.min(62, width - 6));
+
   return (
     <box
       position="absolute"
@@ -27,7 +31,7 @@ export function FiltersModal({
       backgroundColor="#03090d"
     >
       <box
-        width={54}
+        width={modalWidth}
         border
         borderStyle="double"
         borderColor="#f5b85c"

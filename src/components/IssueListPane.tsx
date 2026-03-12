@@ -10,6 +10,10 @@ type IssueListPaneProps = {
   issues: IssueSummary[];
   linkedPullRequestsByIssueNumber: Record<number, PullRequestSummary>;
   selectedIssueNumber: number | null;
+  width?: number | `${number}%`;
+  minWidth?: number;
+  maxWidth?: number;
+  titleMaxLength?: number;
   focused: boolean;
   loading: boolean;
   error: string | null;
@@ -21,6 +25,10 @@ export function IssueListPane({
   issues,
   linkedPullRequestsByIssueNumber,
   selectedIssueNumber,
+  width = 72,
+  minWidth = 56,
+  maxWidth = 76,
+  titleMaxLength = ISSUE_CARD_WIDTH_HINT,
   focused,
   loading,
   error,
@@ -53,9 +61,9 @@ export function IssueListPane({
 
   return (
     <box
-      width={72}
-      minWidth={56}
-      maxWidth={76}
+      width={width}
+      minWidth={minWidth}
+      maxWidth={maxWidth}
       border
       borderStyle="rounded"
       borderColor="#315a72"
@@ -120,7 +128,7 @@ export function IssueListPane({
                       <text fg={selected ? "#f5b85c" : "#f9f6ef"}>
                         <strong>
                           {selected ? "▶ " : ""}
-                          {truncateForCard(issue.title, ISSUE_CARD_WIDTH_HINT)}
+                          {truncateForCard(issue.title, titleMaxLength)}
                         </strong>
                       </text>
                       <text fg={selected ? "#d9e5ec" : "#6f91a4"}>

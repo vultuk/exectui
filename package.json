@@ -1,8 +1,22 @@
 {
-  "name": "exectui-app",
+  "name": "exectui",
+  "version": "0.1.0",
   "module": "src/index.tsx",
   "type": "module",
-  "private": true,
+  "private": false,
+  "description": "Terminal workflow cockpit for GitHub issues and pull requests",
+  "bin": {
+    "exectui": "./bin/exectui.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    ".env.example"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
     "start": "bun run src/index.tsx",

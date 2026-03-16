@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import type {
   CheckStatus,
   IssueComment,
@@ -190,7 +191,7 @@ const PR_DETAIL_QUERY = `
 `;
 
 export function getRepoConfig(): RepoConfig {
-  const fullName = getRepositoryArgument();
+  const fullName = getRepositoryArgument() || getRepositoryFromCurrentDirectory();
   const refreshIntervalSeconds =
     Number.parseInt(process.env.GITHUB_REFRESH_INTERVAL_SECONDS ?? "", 10) ||
     DEFAULT_REFRESH_INTERVAL_SECONDS;
@@ -200,7 +201,7 @@ export function getRepoConfig(): RepoConfig {
     return {
       ok: false,
       error:
-        "Pass the repository as owner/repo when launching the TUI. Example: bun run start -- vultuk/exectui",
+        "Pass the repository as owner/repo or launch the TUI from a git checkout with an origin remote. Example: bun run start -- vultuk/exectui",
       refreshIntervalMs,
     };
   }
@@ -228,6 +229,38 @@ function getRepositoryArgument() {
     .slice(2)
     .find((value) => !value.startsWith("-"))
     ?.trim() ?? "";
+}
+
+function getRepositoryFromCurrentDirectory() {
+  const result = spawnSync("git", ["remote", "get-url", "origin"], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+
+  if (result.status !== 0) {
+    return "";
+  }
+
+  return parseGitRemote(result.stdout.trim());
+}
+
+function parseGitRemote(remote: string) {
+  const normalized = remote.trim();
+  if (!normalized) {
+    return "";
+  }
+
+  const scpLikeMatch = normalized.match(/^[^@]+@[^:]+:([^/]+\/[^/]+?)(?:\.git)?$/);
+  if (scpLikeMatch) {
+    return scpLikeMatch[1] ?? "";
+  }
+
+  const protocolMatch = normalized.match(/[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+  if (protocolMatch) {
+    return protocolMatch[1] ?? "";
+  }
+
+  return "";
 }
 
 export async function fetchWorkflowOverview(

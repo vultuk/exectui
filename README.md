@@ -13,11 +13,14 @@ This first version includes:
 
 ## Configuration
 
-Required:
+Repository selection:
 
 ```bash
 bun run start -- owner/repo
 ```
+
+If you omit the argument, ExecTUI will try to use the current working directory's
+git `origin` remote instead.
 
 Optional:
 
@@ -29,13 +32,23 @@ The app uses the authenticated GitHub CLI session on your machine for API access
 
 ```bash
 bun install
-bun run start -- owner/repo
+bun run start
 ```
+
+Run it through `npx`:
+
+```bash
+npx exectui
+npx exectui -- owner/repo
+```
+
+`npx` is just the package launcher here. Bun still needs to be installed locally because
+ExecTUI runs on the Bun/OpenTUI runtime.
 
 Development watch mode:
 
 ```bash
-bun run dev -- owner/repo
+bun run dev
 ```
 
 Typecheck:
